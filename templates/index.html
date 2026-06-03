@@ -1,77 +1,767 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>CodePi Coding Agent</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body { font-family: Arial, sans-serif; background: #0f172a; color: white; max-width: 900px; margin: 25px auto; padding: 15px; }
-        h1 { text-align: center; margin-bottom: 5px; }
-        .subtitle { text-align: center; color: #94a3b8; margin-bottom: 20px; }
-        #chat-box { height: 500px; overflow-y: auto; background: #020617; border: 1px solid #334155; border-radius: 10px; padding: 15px; }
-        .message { margin: 12px 0; white-space: pre-wrap; line-height: 1.45; }
-        .user { color: #7dd3fc; }
-        .bot { color: #86efac; }
-        .error { color: #fca5a5; }
-        #mode-label { color: #38bdf8; font-size: 14px; text-align: center; margin-bottom: 10px; }
-        #input-area { display: flex; gap: 8px; margin-top: 15px; }
-        textarea { flex: 1; height: 80px; padding: 12px; font-size: 15px; border-radius: 8px; border: none; resize: vertical; }
-        button { padding: 12px 20px; border: none; border-radius: 8px; background: #2563eb; color: white; font-size: 16px; cursor: pointer; }
-        button:disabled { background: #475569; }
-    </style>
+<meta charset="UTF-8" />
+<title>CodePi — 8-bit Coding Buddy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #0b0420;
+    --bg-grid:   #160a36;
+    --panel:     #1b0b3d;
+    --panel-2:   #2a1364;
+    --ink:       #f8f1ff;
+    --ink-dim:   #c5b4ff;
+    --accent:    #5cffd1;
+    --accent-2:  #ffd24a;
+    --hot:       #ff5edb;
+    --warn:      #ff8e3a;
+    --danger:    #ff4d6d;
+    --good:      #8cff66;
+    --shadow:    #000;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Press Start 2P", monospace;
+    color: var(--ink);
+    background:
+      linear-gradient(var(--bg-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+      radial-gradient(circle at 50% 0%, #2a1364 0%, var(--bg) 60%);
+    min-height: 100vh;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    overflow-x: hidden;
+  }
+
+  /* CRT scanlines */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.18) 0px,
+      rgba(0,0,0,0.18) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 1000;
+    mix-blend-mode: multiply;
+  }
+
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 18px 16px 32px;
+  }
+
+  /* ====== Header ====== */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 4px solid var(--ink);
+    box-shadow:
+      6px 6px 0 var(--shadow),
+      inset 0 0 0 2px var(--panel-2);
+    margin-bottom: 18px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .logo .blocks {
+    width: 36px; height: 36px;
+    background:
+      conic-gradient(from 0deg, var(--hot), var(--accent), var(--accent-2), var(--hot));
+    border: 3px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--shadow);
+  }
+  .logo h1 {
+    font-size: 16px;
+    margin: 0;
+    letter-spacing: 2px;
+    color: var(--accent-2);
+    text-shadow:
+      2px 2px 0 var(--hot),
+      4px 4px 0 var(--shadow);
+  }
+  .logo .sub {
+    font-family: "VT323", monospace;
+    font-size: 16px;
+    color: var(--accent);
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+
+  .modelpick {
+    display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+  }
+  .modelpick label {
+    font-size: 9px;
+    color: var(--ink-dim);
+  }
+  .modelpick select {
+    font-family: "Press Start 2P", monospace;
+    font-size: 10px;
+    background: var(--bg);
+    color: var(--accent);
+    border: 3px solid var(--ink);
+    padding: 8px 10px;
+    box-shadow: 3px 3px 0 var(--shadow);
+    appearance: none;
+    cursor: pointer;
+    max-width: 280px;
+  }
+
+  /* ====== Main grid ====== */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 18px;
+  }
+  @media (max-width: 820px) {
+    main { grid-template-columns: 1fr; }
+    .face-panel { order: -1; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 4px solid var(--ink);
+    box-shadow: 6px 6px 0 var(--shadow), inset 0 0 0 2px var(--panel-2);
+    padding: 14px;
+  }
+
+  /* ====== Chat ====== */
+  .chat-panel { display: flex; flex-direction: column; }
+
+  #chat-box {
+    height: 460px;
+    overflow-y: auto;
+    background: var(--bg);
+    border: 3px solid var(--ink);
+    padding: 14px;
+    image-rendering: pixelated;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) var(--bg);
+  }
+  #chat-box::-webkit-scrollbar { width: 10px; }
+  #chat-box::-webkit-scrollbar-track { background: var(--bg); }
+  #chat-box::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border: 2px solid var(--bg);
+  }
+
+  .msg {
+    margin: 10px 0;
+    padding: 10px 12px;
+    border: 3px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--shadow);
+    white-space: pre-wrap;
+    line-height: 1.55;
+    font-family: "VT323", monospace;
+    font-size: 18px;
+    max-width: 90%;
+  }
+  .msg .who {
+    display: block;
+    font-family: "Press Start 2P", monospace;
+    font-size: 9px;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+  .msg.user      { background: #1d3a8a; color: #cfe0ff;  margin-left: auto; }
+  .msg.user .who { color: var(--accent); }
+  .msg.bot       { background: #14342a; color: #d6ffe6; }
+  .msg.bot .who  { color: var(--good); }
+  .msg.warn      { background: #4a2f08; color: #ffe1b3; }
+  .msg.warn .who { color: var(--warn); }
+  .msg.bad       { background: #4a0822; color: #ffd3df; }
+  .msg.bad .who  { color: var(--danger); }
+  .msg pre {
+    background: #06030f;
+    border: 2px solid var(--accent);
+    padding: 8px;
+    overflow-x: auto;
+    font-family: "VT323", monospace;
+    font-size: 16px;
+  }
+  .msg .meta {
+    display: block;
+    margin-top: 6px;
+    font-family: "Press Start 2P", monospace;
+    font-size: 7px;
+    color: var(--ink-dim);
+    letter-spacing: 1px;
+  }
+
+  /* ====== Input ====== */
+  .input-row {
+    display: flex; gap: 10px; margin-top: 12px;
+  }
+  textarea {
+    flex: 1;
+    height: 70px;
+    padding: 10px;
+    font-family: "VT323", monospace;
+    font-size: 18px;
+    color: var(--ink);
+    background: var(--bg);
+    border: 3px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--shadow);
+    resize: vertical;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+
+  .btn {
+    font-family: "Press Start 2P", monospace;
+    font-size: 11px;
+    padding: 0 18px;
+    color: var(--bg);
+    background: var(--accent);
+    border: 3px solid var(--ink);
+    box-shadow: 4px 4px 0 var(--shadow);
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: transform 0.05s;
+  }
+  .btn:hover  { background: var(--accent-2); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--shadow); }
+  .btn[disabled] { background: #4a4467; color: #aaa; cursor: not-allowed; }
+  .btn.alt { background: var(--hot); color: var(--ink); }
+
+  .toolbar {
+    display: flex; gap: 8px; margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* ====== Face panel ====== */
+  .face-panel {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .face-stage {
+    position: relative;
+    width: 240px; height: 240px;
+    background: var(--bg);
+    border: 3px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--shadow);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  /* floor tiles for that diorama feel */
+  .face-stage::after {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0; height: 36px;
+    background:
+      repeating-linear-gradient(45deg,
+        #2a1364 0 8px, #160a36 8px 16px);
+    border-top: 3px solid var(--ink);
+  }
+  #face-canvas {
+    width: 192px; height: 192px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    z-index: 1;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  .face-stage.shake #face-canvas { animation: shake 0.4s linear 3; }
+  @keyframes breathe { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes shake   { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+  .bubble {
+    position: absolute;
+    top: 14px; right: 14px;
+    padding: 6px 8px;
+    background: var(--ink);
+    color: var(--panel);
+    font-family: "Press Start 2P", monospace;
+    font-size: 12px;
+    border: 3px solid var(--panel);
+    box-shadow: 3px 3px 0 var(--shadow);
+    display: none;
+    z-index: 2;
+  }
+  .bubble.show { display: block; animation: pop 0.3s ease-out; }
+  .face-stage[data-state="thinking"] .bubble.dots { display: block; }
+  .face-stage[data-state="thinking"] .bubble.dots::after {
+    content: "";
+    animation: dots 1.2s steps(4, end) infinite;
+  }
+  .face-stage[data-state="confused"] .bubble.qmark { display: block; animation: bob 1.0s ease-in-out infinite; }
+  .face-stage[data-state="unhappy"]  .bubble.bang  { display: block; animation: blink 0.5s steps(2, end) infinite; }
+  @keyframes pop  { from { transform: scale(0.4); } to { transform: scale(1); } }
+  @keyframes dots { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} 100%{content:""} }
+  @keyframes bob  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes blink{ 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+  .status {
+    font-family: "Press Start 2P", monospace;
+    font-size: 10px;
+    color: var(--accent);
+    text-align: center;
+    padding: 6px 10px;
+    background: var(--bg);
+    border: 3px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--shadow);
+    min-width: 200px;
+    letter-spacing: 1px;
+  }
+  .status.thinking { color: var(--accent-2); }
+  .status.confused { color: var(--hot); }
+  .status.unhappy  { color: var(--danger); }
+  .status.idle     { color: var(--accent); }
+
+  .hp-bar {
+    width: 200px;
+    display: flex; flex-direction: column; gap: 4px;
+    font-family: "VT323", monospace;
+    font-size: 14px;
+    color: var(--ink-dim);
+  }
+  .hp-bar .label { display: flex; justify-content: space-between; }
+  .bar {
+    height: 12px; background: var(--bg);
+    border: 2px solid var(--ink);
+    position: relative;
+  }
+  .bar .fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--good);
+    transition: width 0.4s ease;
+  }
+
+  /* ====== Benchmark modal ====== */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center;
+    z-index: 2000;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 4px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--shadow);
+    padding: 16px;
+    max-width: 700px; width: calc(100% - 32px);
+    max-height: 80vh; overflow-y: auto;
+  }
+  .modal h3 {
+    margin: 0 0 12px;
+    font-size: 12px; color: var(--accent-2);
+    letter-spacing: 2px;
+  }
+  .bench-row {
+    border: 2px solid var(--ink);
+    padding: 8px;
+    margin-bottom: 8px;
+    font-family: "VT323", monospace;
+    font-size: 16px;
+    background: var(--bg);
+  }
+  .bench-row .mid { color: var(--accent); font-family: "Press Start 2P", monospace; font-size: 10px; }
+  .bench-row .num { color: var(--accent-2); }
+
+  footer {
+    margin-top: 18px;
+    font-family: "VT323", monospace;
+    font-size: 14px;
+    color: var(--ink-dim);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+</style>
 </head>
 <body>
-    <h1>CodePi Coding Agent</h1>
-    <div class="subtitle">Local coding-only AI assistant on Raspberry Pi</div>
-    <div id="mode-label">Mode: idle</div>
-    <div id="chat-box"></div>
-    <div id="input-area">
-        <textarea id="message-input" placeholder="Ask a coding question..."></textarea>
-        <button id="send-button" onclick="sendMessage()">Send</button>
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <div class="blocks"></div>
+      <div>
+        <h1>CODE&nbsp;PI</h1>
+        <div class="sub">&gt; local coding buddy</div>
+      </div>
     </div>
-    <script>
-        const chatBox = document.getElementById("chat-box");
-        const input = document.getElementById("message-input");
-        const button = document.getElementById("send-button");
-        const modeLabel = document.getElementById("mode-label");
-        function escapeHtml(text) { const div = document.createElement("div"); div.innerText = text; return div.innerHTML; }
-        function addMessage(role, text, className) {
-            const div = document.createElement("div");
-            div.className = `message ${className}`;
-            div.innerHTML = `<b>${role}:</b>\n${escapeHtml(text)}`;
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-        async function sendMessage() {
-            const message = input.value.trim();
-            if (!message) return;
-            addMessage("You", message, "user");
-            input.value = "";
-            button.disabled = true;
-            button.innerText = "Thinking...";
-            try {
-                const response = await fetch("/api/chat", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message })
-                });
-                const data = await response.json();
-                modeLabel.innerText = `Mode: ${data.mode || "unknown"}`;
-                if (data.reply) addMessage("CodePi", data.reply, "bot");
-                else addMessage("Error", data.error || "Unknown error", "error");
-            } catch (err) {
-                modeLabel.innerText = "Mode: connection_error";
-                addMessage("Error", "Could not connect to backend.", "error");
-            }
-            button.disabled = false;
-            button.innerText = "Send";
-            input.focus();
-        }
-        input.addEventListener("keydown", function(event) {
-            if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                sendMessage();
-            }
-        });
-    </script>
+    <div class="modelpick">
+      <label for="model-select">MODEL</label>
+      <select id="model-select"><option>loading…</option></select>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel chat-panel">
+      <div id="chat-box"></div>
+      <div class="input-row">
+        <textarea id="message-input" placeholder="type a coding question…"></textarea>
+        <button id="send-button" class="btn">SEND</button>
+      </div>
+      <div class="toolbar">
+        <button id="bench-button" class="btn alt">BENCH ALL</button>
+        <button id="clear-button" class="btn">CLEAR</button>
+      </div>
+    </section>
+
+    <aside class="panel face-panel">
+      <div class="face-stage" id="face-stage" data-state="happy">
+        <canvas id="face-canvas" width="64" height="64"></canvas>
+        <div class="bubble dots">...</div>
+        <div class="bubble qmark">?</div>
+        <div class="bubble bang">!</div>
+      </div>
+      <div id="status" class="status idle">READY</div>
+      <div class="hp-bar">
+        <div class="label"><span>MOOD</span><span id="mood-pct">100%</span></div>
+        <div class="bar"><div class="fill" id="mood-fill" style="width:100%"></div></div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>llama.cpp · raspberry pi · v2 — drop any *.gguf in ./models and it will appear in the dropdown</footer>
+</div>
+
+<div class="modal-bg" id="bench-modal">
+  <div class="modal">
+    <h3>BENCHMARK RESULTS</h3>
+    <div id="bench-results"></div>
+    <button class="btn" onclick="document.getElementById('bench-modal').classList.remove('show')">CLOSE</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   PIXEL FACE — 16x16 grids, rendered to canvas with chunky pixels.
+   Color keys: ' ' transparent, 'Y' face, 'O' outline, 'B' dark, 'W' white.
+   The Y/O colors are themed per state (yellow happy/thinking/confused, red unhappy).
+   ========================================================================= */
+const FACE_SIZE = 16;
+
+const FACES = {
+  happy: [
+    "    OOOOOOOO    ",
+    "   OYYYYYYYYO   ",
+    "  OYYYYYYYYYYO  ",
+    " OYYYYYYYYYYYYO ",
+    " OYYBBYYYYBBYYO ",
+    "OYYYBBYYYYBBYYYO",
+    "OYYYBBYYYYBBYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYBYYYYYYYYYBYO",
+    "OYYYBBYYYYBBYYYO",
+    " OYYYBBBBBBBBYO ",
+    " OYYYYYYYYYYYYO ",
+    "  OYYYYYYYYYYO  ",
+    "   OYYYYYYYYO   ",
+    "    OOOOOOOO    ",
+  ],
+  thinking: [
+    "    OOOOOOOO    ",
+    "   OYYYYYYYYO   ",
+    "  OYYYYYYYYYYO  ",
+    " OYYBBYYYYBBYYO ",
+    " OYYYYYYYYYYYYO ",
+    "OYYYBYYYYYYBYYYO",
+    "OYYYBYYYYYYBYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYBBYYYYYYO",
+    " OYYYYYBBYYYYYO ",
+    " OYYYYYYYYYYYYO ",
+    "  OYYYYYYYYYYO  ",
+    "   OYYYYYYYYO   ",
+    "    OOOOOOOO    ",
+  ],
+  confused: [
+    "    OOOOOOOO    ",
+    "   OYYYYYYYYO   ",
+    "  OYYYYYYYYYYO  ",
+    " OYYYYYYYYYYYYO ",
+    " OYYBBYYYYYYBYO ",
+    "OYYYBBYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYBBYYBBYYBBYYO",
+    "OYYYYBBYYBBYYYYO",
+    " OYYYYYYYYYYYYO ",
+    "  OYYYYYYYYYYO  ",
+    "   OYYYYYYYYO   ",
+    "    OOOOOOOO    ",
+  ],
+  unhappy: [
+    "    OOOOOOOO    ",
+    "   OYYYYYYYYO   ",
+    "  OYYYYYYYYYYO  ",
+    " OBBYYYYYYYYBBO ",
+    " OYBBYYYYYYBBYO ",
+    "OYYBBYYYYYYBBYYO",
+    "OYYYBBYYYYBBYYYO",
+    "OYYYYBBYYBBYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYBBYYYYYYBBYYO",
+    "OYYYBBBBBBBBYYYO",
+    " OYYYYYYYYYYYYO ",
+    "  OYYYYYYYYYYO  ",
+    "   OYYYYYYYYO   ",
+    "    OOOOOOOO    ",
+  ],
+};
+
+const PALETTES = {
+  happy:    { Y: "#fde047", O: "#a16207", B: "#1a0a3a", W: "#ffffff" },
+  thinking: { Y: "#fde047", O: "#a16207", B: "#1a0a3a", W: "#ffffff" },
+  confused: { Y: "#fde047", O: "#a16207", B: "#1a0a3a", W: "#ffffff" },
+  unhappy:  { Y: "#ff5577", O: "#7a0017", B: "#1a0a3a", W: "#ffffff" },
+};
+
+function drawFace(state) {
+  const canvas = document.getElementById("face-canvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = FACE_SIZE;
+  canvas.height = FACE_SIZE;
+  ctx.clearRect(0, 0, FACE_SIZE, FACE_SIZE);
+  const grid = FACES[state] || FACES.happy;
+  const palette = PALETTES[state] || PALETTES.happy;
+  for (let y = 0; y < FACE_SIZE; y++) {
+    const row = grid[y] || "";
+    for (let x = 0; x < FACE_SIZE; x++) {
+      const ch = row[x] || " ";
+      if (ch === " ") continue;
+      ctx.fillStyle = palette[ch] || "#ff00ff";
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+}
+
+/* ============================== STATE ============================== */
+const STATUS_TEXT = {
+  happy:    "READY",
+  thinking: "THINKING…",
+  confused: "HUH?",
+  unhappy:  "NOPE!",
+};
+
+let mood = 100;
+let currentModelId = null;
+
+function setFaceState(state) {
+  const stage = document.getElementById("face-stage");
+  const status = document.getElementById("status");
+  stage.dataset.state = state;
+  if (state === "unhappy") {
+    stage.classList.remove("shake");
+    void stage.offsetWidth;
+    stage.classList.add("shake");
+  }
+  status.className = "status " + state;
+  status.textContent = STATUS_TEXT[state] || "READY";
+  drawFace(state);
+}
+
+function bumpMood(delta) {
+  mood = Math.max(0, Math.min(100, mood + delta));
+  document.getElementById("mood-pct").textContent = mood + "%";
+  const fill = document.getElementById("mood-fill");
+  fill.style.width = mood + "%";
+  if (mood < 30) fill.style.background = "var(--danger)";
+  else if (mood < 60) fill.style.background = "var(--warn)";
+  else fill.style.background = "var(--good)";
+}
+
+/* ============================== CHAT ============================== */
+const chatBox = document.getElementById("chat-box");
+const input = document.getElementById("message-input");
+const sendBtn = document.getElementById("send-button");
+
+function escapeHtml(s) {
+  const d = document.createElement("div");
+  d.innerText = s;
+  return d.innerHTML;
+}
+
+function renderReply(text) {
+  /* simple ```fence``` -> <pre>, otherwise escape */
+  const parts = text.split(/```([\s\S]*?)```/);
+  let out = "";
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) out += escapeHtml(parts[i]);
+    else out += "<pre>" + escapeHtml(parts[i].replace(/^[a-zA-Z]*\n/, "")) + "</pre>";
+  }
+  return out;
+}
+
+function addMessage(who, text, cls, meta) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  const whoLabel = `<span class="who">${escapeHtml(who)}</span>`;
+  const body = cls === "bot" ? renderReply(text) : escapeHtml(text);
+  const metaLine = meta ? `<span class="meta">${escapeHtml(meta)}</span>` : "";
+  div.innerHTML = whoLabel + body + metaLine;
+  chatBox.appendChild(div);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function sendMessage() {
+  const message = input.value.trim();
+  if (!message) return;
+  addMessage("YOU", message, "user");
+  input.value = "";
+  sendBtn.disabled = true;
+  sendBtn.textContent = "…";
+  setFaceState("thinking");
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, model_id: currentModelId }),
+    });
+    const data = await res.json();
+    const face = data.face_state || (data.error ? "unhappy" : "happy");
+    setFaceState(face);
+
+    if (data.reply) {
+      const cls =
+        face === "unhappy" ? "bad" :
+        face === "confused" ? "warn" : "bot";
+      const meta = [];
+      if (data.model_id) meta.push(data.model_id);
+      if (data.mode)     meta.push(data.mode);
+      if (data.elapsed_ms) meta.push(data.elapsed_ms + " ms");
+      addMessage("CODEPI", data.reply, cls, meta.join(" · "));
+      if (face === "unhappy") bumpMood(-20);
+      else if (face === "confused") bumpMood(-5);
+      else bumpMood(+3);
+    } else if (data.error) {
+      addMessage("ERROR", data.error, "bad");
+      bumpMood(-10);
+    }
+  } catch (e) {
+    setFaceState("unhappy");
+    addMessage("ERROR", "Could not reach backend. Is the server running?", "bad");
+    bumpMood(-10);
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = "SEND";
+    input.focus();
+  }
+}
+
+/* ============================== MODELS ============================== */
+async function loadModels() {
+  const select = document.getElementById("model-select");
+  try {
+    const res = await fetch("/api/models");
+    const data = await res.json();
+    select.innerHTML = "";
+    if (!data.models || data.models.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "(no GGUFs found)";
+      select.appendChild(opt);
+      currentModelId = null;
+      addMessage(
+        "CODEPI",
+        `No models found in ${data.models_dir || "./models"}. Drop a *.gguf file in there and reload.`,
+        "warn"
+      );
+      setFaceState("confused");
+      return;
+    }
+    for (const m of data.models) {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.label;
+      select.appendChild(opt);
+    }
+    currentModelId = data.default || data.models[0].id;
+    select.value = currentModelId;
+  } catch (e) {
+    addMessage("ERROR", "Could not load models from backend.", "bad");
+  }
+  select.addEventListener("change", () => {
+    currentModelId = select.value;
+    addMessage("CODEPI", `Switched to model: ${select.options[select.selectedIndex].text}`, "bot");
+  });
+}
+
+/* ============================== BENCHMARK ============================== */
+async function runBenchmark() {
+  const message = input.value.trim() || "Write a one-line function that returns the sum of two integers.";
+  const modal = document.getElementById("bench-modal");
+  const out = document.getElementById("bench-results");
+  out.innerHTML = `<div class="bench-row">Running… please wait. This may take a while across all models.</div>`;
+  modal.classList.add("show");
+  setFaceState("thinking");
+  try {
+    const res = await fetch("/api/benchmark", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+    const data = await res.json();
+    out.innerHTML = "";
+    for (const r of data.results) {
+      const row = document.createElement("div");
+      row.className = "bench-row";
+      if (r.ok) {
+        row.innerHTML =
+          `<div class="mid">${escapeHtml(r.model_id)}</div>` +
+          `<div>elapsed: <span class="num">${r.elapsed_ms} ms</span> · ` +
+          `~tokens: <span class="num">${r.approx_tokens}</span> · ` +
+          `~tok/s: <span class="num">${r.approx_tok_per_s}</span></div>` +
+          `<div style="opacity:0.8;margin-top:4px;">${escapeHtml(r.preview || "")}</div>`;
+      } else {
+        row.innerHTML =
+          `<div class="mid">${escapeHtml(r.model_id)}</div>` +
+          `<div style="color: var(--danger)">error: ${escapeHtml(r.error)}</div>`;
+      }
+      out.appendChild(row);
+    }
+    setFaceState("happy");
+  } catch (e) {
+    out.innerHTML = `<div class="bench-row" style="color: var(--danger)">Benchmark failed: ${escapeHtml(e.message)}</div>`;
+    setFaceState("unhappy");
+  }
+}
+
+/* ============================== WIRE UP ============================== */
+sendBtn.addEventListener("click", sendMessage);
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+document.getElementById("clear-button").addEventListener("click", () => {
+  chatBox.innerHTML = "";
+  mood = 100; bumpMood(0);
+  setFaceState("happy");
+});
+document.getElementById("bench-button").addEventListener("click", runBenchmark);
+
+setFaceState("happy");
+bumpMood(0);
+loadModels();
+addMessage(
+  "CODEPI",
+  "Hi! I am CODEPI, your 8-bit coding buddy. Ask me to debug, explain, optimize, or solve a coding problem!",
+  "bot"
+);
+</script>
 </body>
 </html>

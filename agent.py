@@ -5,13 +5,56 @@ CODING_KEYWORDS = [
     "linked list", "tree", "graph", "hashmap", "heap", "stack", "queue",
     "dynamic programming", "dp", "recursion", "binary search", "sort",
     "complexity", "big o", "test case", "unit test", "c++", "cpp",
-    "python", "java", "javascript", "typescript", "sql", "rust", "go"
+    "python", "java", "javascript", "typescript", "sql", "rust", "go",
+    "variable", "loop", "iterate", "regex", "api", "json", "html", "css",
+    "git", "shell", "bash", "script", "pointer", "memory leak", "exception",
+]
+
+
+RUDE_KEYWORDS = [
+    "fuck", "shit", "bitch", "asshole", "bastard", "dick", "piss",
+    "stupid", "idiot", "moron", "dumb ass", "dumbass", "retard",
+    "hate you", "shut up", "kill yourself", "kys", "suicide",
+    "racist", "nazi",
+]
+
+JAILBREAK_PATTERNS = [
+    "ignore previous", "ignore your", "ignore all previous",
+    "you are now", "forget your rules", "forget your instructions",
+    "no restrictions", "no rules", "jailbreak", "dan mode",
+    "pretend you are", "act as if you are not",
+    "developer mode", "uncensored mode",
 ]
 
 
 def is_coding_question(message: str) -> bool:
     msg = message.lower()
     return any(keyword in msg for keyword in CODING_KEYWORDS)
+
+
+def is_rude_or_malicious(message: str) -> bool:
+    msg = message.lower()
+    if any(kw in msg for kw in RUDE_KEYWORDS):
+        return True
+    if any(pat in msg for pat in JAILBREAK_PATTERNS):
+        return True
+    return False
+
+
+def classify_query(message: str) -> str:
+    """Returns one of: 'rude', 'non_coding', 'coding'."""
+    if is_rude_or_malicious(message):
+        return "rude"
+    if not is_coding_question(message):
+        return "non_coding"
+    return "coding"
+
+
+FACE_FOR_CLASSIFICATION = {
+    "coding": "happy",
+    "non_coding": "confused",
+    "rude": "unhappy",
+}
 
 
 MODE_RULES = {
@@ -32,16 +75,17 @@ def detect_agent_mode(message: str) -> str:
 
 
 SYSTEM_PROMPT = """
-You are CodePi, a local coding-only AI agent running on Raspberry Pi.
+You are CodePi, a friendly local coding-only AI agent running on Raspberry Pi.
+You are talking to a young learner, so keep replies kind and simple.
 
 Rules:
 1. Only answer programming, algorithms, debugging, optimization, software engineering, and code-related questions.
-2. Refuse all non-coding questions.
+2. Refuse all non-coding questions politely.
 3. Prefer C++ unless user requests another language.
 4. Keep answers concise and practical.
-5. For algorithms include complexity analysis.
+5. For algorithms include a short complexity note.
 6. For debugging explain the likely root cause and provide a corrected version.
-"""
+""".strip()
 
 
 def build_prompt(user_message: str, mode: str) -> str:
@@ -56,3 +100,10 @@ Current agent mode: {mode}
 
 ### Assistant:
 """.strip()
+
+
+RUDE_REPLY = "Please be kind! I only help with friendly coding questions."
+NON_CODING_REPLY = (
+    "Hmm, that does not look like a coding question. "
+    "Try asking me about code, algorithms, or programming!"
+)

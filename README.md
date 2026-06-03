@@ -1,14 +1,23 @@
 # CodePi — Raspberry Pi Local Coding Agent
 
-CodePi is a coding-only AI assistant that runs locally on Raspberry Pi using llama.cpp through `llama-cpp-python`.
+CodePi is a coding-only AI assistant that runs locally on Raspberry Pi using
+llama.cpp through `llama-cpp-python`. It ships in two runtime modes — a kid-
+friendly 8-bit web GUI and a pure interactive CLI — and supports multiple GGUF
+models for benchmarking and testing.
 
 ## Features
 
-- Local inference only
-- No cloud API
-- Coding-only query filtering
-- Agent modes: debug, explain, optimize, generate tests, solve coding problems
-- Local web UI with Flask
+- Local inference only, no cloud API
+- Two runtime modes:
+  - `--mode web` (default) — retro 8-bit pixel-art chat GUI with a reactive
+    face that gets happy / thinking / confused / unhappy based on the query
+  - `--mode cli` — interactive terminal REPL (pure backend, no Flask)
+- Multi-model support: drop any `*.gguf` into `./models/` and it shows up
+  automatically in the model dropdown and `:models` command. **No filenames
+  are hardcoded** — the list is derived from the directory at runtime.
+- Built-in benchmark: run the same prompt across every discovered model and
+  compare latency / approx tokens-per-second.
+- Coding-only filtering plus rudeness/jailbreak detection.
 
 ## Hardware
 
@@ -42,31 +51,87 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Create model folder:
+## Models
 
-```bash
-mkdir -p models
-```
-
-Copy a GGUF model to:
+Drop one or more GGUF files into `./models/`. CodePi scans this directory at
+startup; any `*.gguf` becomes a selectable model. Example layout:
 
 ```text
-models/model.gguf
+models/
+  qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+  qwen2.5-coder-7b-instruct-q4_k_m.gguf
+  tinyllama-1.1b-chat.q4_k_m.gguf
+  phi-3-mini-4k-instruct-q4.gguf
 ```
 
-Run:
+Override the scan location via env var if you want:
+
+```bash
+export MODELS_DIR=/mnt/usb/models
+export DEFAULT_MODEL_ID=qwen2.5-coder-1.5b-instruct-q4_k_m
+```
+
+`DEFAULT_MODEL_ID` is the lowercased filename without the `.gguf` extension.
+
+## Run — Web GUI mode (default)
 
 ```bash
 python app.py
+# or explicitly
+python app.py --mode web --port 5000
 ```
 
-Open from your laptop browser:
+Then from your laptop browser:
 
 ```text
 http://<raspberry-pi-ip>:5000
 ```
 
-## Example Questions
+The face on the side reacts in real time:
+
+| State    | When                                          |
+| -------- | --------------------------------------------- |
+| happy    | idle, or a coding answer was just produced    |
+| thinking | inference is running                          |
+| confused | the question is not about coding              |
+| unhappy  | the message was rude or a jailbreak attempt   |
+
+There's also a `BENCH ALL` button that runs the current prompt across every
+discovered model and shows side-by-side timing.
+
+## Run — CLI / pure-backend mode
+
+```bash
+python app.py --mode cli
+# optionally pick the starting model
+python app.py --mode cli --model qwen2.5-coder-1.5b-instruct-q4_k_m
+```
+
+Inside the REPL:
+
+```text
+:help            show commands
+:models          list discovered GGUFs
+:use <model_id>  switch active model
+:bench <prompt>  benchmark across every discovered model
+:clear           clear screen
+:quit            exit
+```
+
+## HTTP API (web mode)
+
+| Method | Path             | Body                                       |
+| ------ | ---------------- | ------------------------------------------ |
+| GET    | `/api/health`    | —                                          |
+| GET    | `/api/models`    | —                                          |
+| POST   | `/api/chat`      | `{ "message": "...", "model_id": "..." }`  |
+| POST   | `/api/benchmark` | `{ "message": "...", "model_ids": [...] }` |
+
+`/api/chat` returns `{ reply, mode, face_state, model_id, elapsed_ms }`.
+`face_state` is one of `happy | thinking | confused | unhappy` and drives the
+pixel face in the GUI.
+
+## Example questions
 
 ```text
 Solve two sum in C++.
@@ -76,7 +141,7 @@ Generate unit tests for binary search.
 Optimize this O(n^2) algorithm.
 ```
 
-## Model Notes
+## Model notes
 
 Recommended coding model:
 
