@@ -300,10 +300,12 @@
   }
   .face-stage[data-state="confused"] .bubble.qmark { display: block; animation: bob 1.0s ease-in-out infinite; }
   .face-stage[data-state="unhappy"]  .bubble.bang  { display: block; animation: blink 0.5s steps(2, end) infinite; }
-  @keyframes pop  { from { transform: scale(0.4); } to { transform: scale(1); } }
-  @keyframes dots { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} 100%{content:""} }
-  @keyframes bob  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-  @keyframes blink{ 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+  .face-stage[data-state="tired"]    .bubble.zzz   { display: block; animation: zfloat 2.4s ease-in-out infinite; }
+  @keyframes pop    { from { transform: scale(0.4); } to { transform: scale(1); } }
+  @keyframes dots   { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} 100%{content:""} }
+  @keyframes bob    { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes blink  { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+  @keyframes zfloat { 0% { transform: translateY(0); opacity: 0.2; } 40% { opacity: 1; } 100% { transform: translateY(-14px); opacity: 0; } }
 
   .status {
     font-family: "Press Start 2P", monospace;
@@ -320,6 +322,7 @@
   .status.thinking { color: var(--accent-2); }
   .status.confused { color: var(--hot); }
   .status.unhappy  { color: var(--danger); }
+  .status.tired    { color: var(--warn); }
   .status.idle     { color: var(--accent); }
 
   .hp-bar {
@@ -418,6 +421,7 @@
         <div class="bubble dots">...</div>
         <div class="bubble qmark">?</div>
         <div class="bubble bang">!</div>
+        <div class="bubble zzz">Zz</div>
       </div>
       <div id="status" class="status idle">READY</div>
       <div class="hp-bar">
@@ -523,6 +527,24 @@ const FACES = {
     "   OYYYYYYYYO   ",
     "    OOOOOOOO    ",
   ],
+  tired: [
+    "    OOOOOOOO    ",
+    "   OYYYYYYYYO   ",
+    "  OYYYYYYYYYYO  ",
+    " OYYYYYYYYYYYYO ",
+    " OYYYYYYYYYYYYO ",
+    "OYYBBBYYYYBBBYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYBBBBYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    " OYYYYYYYYYYYYO ",
+    "  OYYYYYYYYYYO  ",
+    "   OYYYYYYYYO   ",
+    "    OOOOOOOO    ",
+  ],
 };
 
 const PALETTES = {
@@ -530,6 +552,7 @@ const PALETTES = {
   thinking: { Y: "#fde047", O: "#a16207", B: "#1a0a3a", W: "#ffffff" },
   confused: { Y: "#fde047", O: "#a16207", B: "#1a0a3a", W: "#ffffff" },
   unhappy:  { Y: "#ff5577", O: "#7a0017", B: "#1a0a3a", W: "#ffffff" },
+  tired:    { Y: "#c9b154", O: "#6b4e0a", B: "#1a0a3a", W: "#ffffff" },
 };
 
 function drawFace(state) {
@@ -557,6 +580,7 @@ const STATUS_TEXT = {
   thinking: "THINKING…",
   confused: "HUH?",
   unhappy:  "NOPE!",
+  tired:    "I GIVE UP…",
 };
 
 let mood = 100;
@@ -651,7 +675,8 @@ async function sendMessage() {
     if (data.reply) {
       const cls =
         face === "unhappy" ? "bad" :
-        face === "confused" ? "warn" : "bot";
+        face === "confused" ? "warn" :
+        face === "tired" ? "warn" : "bot";
       const meta = [];
       if (data.model_id) meta.push(data.model_id);
       if (data.mode)     meta.push(data.mode);
@@ -677,6 +702,7 @@ async function sendMessage() {
         updateMemoryBar();
       }
       if (face === "unhappy") bumpMood(-20);
+      else if (face === "tired") bumpMood(-10);
       else if (face === "confused") bumpMood(-5);
       else bumpMood(+3);
     } else if (data.error) {

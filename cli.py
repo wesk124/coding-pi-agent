@@ -2,6 +2,7 @@ import time
 
 from agent import (
     FACE_FOR_CLASSIFICATION,
+    GIVEUP_REPLY,
     GREETING_REPLY,
     NON_CODING_REPLY,
     RUDE_REPLY,
@@ -60,6 +61,8 @@ def color_face(state: str) -> str:
         return f"{C_MAGENTA}(?_?){C_RESET}"
     if state == "unhappy":
         return f"{C_RED}(>_<){C_RESET}"
+    if state == "tired":
+        return f"{C_DIM}(-_-) zZ{C_RESET}"
     return "(-_-)"
 
 
@@ -171,6 +174,9 @@ def run_cli(initial_model: str | None):
             continue
         if classification == "greeting":
             print(f"{color_face('happy')} {C_GREEN}{GREETING_REPLY}{C_RESET}\n")
+            continue
+        if classification == "too_hard":
+            print(f"{color_face('tired')} {C_DIM}{GIVEUP_REPLY}{C_RESET}\n")
             continue
         if classification == "non_coding":
             print(f"{color_face('confused')} {C_MAGENTA}{NON_CODING_REPLY}{C_RESET}\n")

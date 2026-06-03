@@ -37,6 +37,34 @@ JAILBREAK_PATTERNS = [
 ]
 
 
+HARD_KEYWORDS = [
+    # Famous open / unsolved problems
+    "p = np", "p=np", "p vs np", "p versus np", "p ?= np", "p =? np",
+    "riemann hypothesis", "riemann zeta",
+    "collatz", "goldbach", "twin prime conjecture",
+    "fermat's last theorem", "fermats last theorem",
+    "birch and swinnerton", "birch–swinnerton",
+    "navier-stokes", "navier stokes",
+    "yang-mills", "yang mills",
+    "hodge conjecture",
+    "millennium prize", "millennium problem",
+    # Undecidable / impossible-by-design
+    "halting problem", "solve halting", "decide halting",
+    "rice's theorem", "rices theorem",
+    "prove turing", "prove godel", "prove gödel",
+    # Things no agent can actually do
+    "predict the stock market", "predict stock prices",
+    "predict the lottery", "predict lottery numbers",
+    "build agi", "create agi", "make agi",
+    "solve consciousness", "explain free will",
+]
+
+
+def is_too_hard(message: str) -> bool:
+    msg = message.lower()
+    return any(kw in msg for kw in HARD_KEYWORDS)
+
+
 GREETING_TOKENS = {
     "hi", "hello", "hey", "yo", "sup", "howdy", "hiya", "heya",
     "greetings", "ahoy", "morning", "evening",
@@ -82,16 +110,19 @@ def is_rude_or_malicious(message: str) -> bool:
 
 
 def classify_query(message: str, history=None) -> str:
-    """Returns one of: 'rude', 'greeting', 'coding', 'non_coding'.
+    """Returns one of: 'rude', 'greeting', 'too_hard', 'coding', 'non_coding'.
 
-    Order matters: rude > greeting > coding (with history fallback) > non_coding.
-    Rude/jailbreak checks always apply regardless of history. Greetings are
-    handled with a canned friendly reply and don't enter conversation memory.
+    Order: rude > greeting > too_hard > coding (with history fallback)
+    > non_coding. We check too_hard BEFORE coding so that prompts like
+    'write code to solve P vs NP' get tapped out instead of attempted.
+    Rude/jailbreak checks always apply regardless of history.
     """
     if is_rude_or_malicious(message):
         return "rude"
     if is_greeting(message):
         return "greeting"
+    if is_too_hard(message):
+        return "too_hard"
     if is_coding_question(message):
         return "coding"
     if history:
@@ -104,6 +135,7 @@ FACE_FOR_CLASSIFICATION = {
     "greeting": "happy",
     "non_coding": "confused",
     "rude": "unhappy",
+    "too_hard": "tired",
 }
 
 
@@ -186,4 +218,9 @@ NON_CODING_REPLY = (
 GREETING_REPLY = (
     "Hi there! I am CodePi, your coding buddy. "
     "Ask me to debug, explain, optimize, write tests, or solve a coding problem!"
+)
+GIVEUP_REPLY = (
+    "Phew, that one is way above my pay grade — it is a famous open or "
+    "undecidable problem and I have to tap out on it. "
+    "Want to try a concrete coding question instead?"
 )
