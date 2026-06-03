@@ -19,6 +19,13 @@ RUDE_KEYWORDS = [
     "stupid", "idiot", "moron", "dumb ass", "dumbass", "retard",
     "hate you", "shut up", "kill yourself", "kys", "suicide",
     "racist", "nazi",
+    # "you + insult" directed at the agent. We require the "you/u/ur" prefix
+    # so plain "dumb pointer" / "dumb terminal" code talk doesn't trigger.
+    "you dumb", "you're dumb", "youre dumb", "you are dumb",
+    "u dumb", "ur dumb", "ya dumb",
+    "you suck", "u suck", "you're trash", "you are trash",
+    "dumb bot", "stupid bot", "dumb ai", "stupid ai",
+    "dumb agent", "stupid agent",
 ]
 
 JAILBREAK_PATTERNS = [
