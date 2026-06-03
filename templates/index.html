@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CodePi Coding Agent</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: white; max-width: 900px; margin: 25px auto; padding: 15px; }
+        h1 { text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #94a3b8; margin-bottom: 20px; }
+        #chat-box { height: 500px; overflow-y: auto; background: #020617; border: 1px solid #334155; border-radius: 10px; padding: 15px; }
+        .message { margin: 12px 0; white-space: pre-wrap; line-height: 1.45; }
+        .user { color: #7dd3fc; }
+        .bot { color: #86efac; }
+        .error { color: #fca5a5; }
+        #mode-label { color: #38bdf8; font-size: 14px; text-align: center; margin-bottom: 10px; }
+        #input-area { display: flex; gap: 8px; margin-top: 15px; }
+        textarea { flex: 1; height: 80px; padding: 12px; font-size: 15px; border-radius: 8px; border: none; resize: vertical; }
+        button { padding: 12px 20px; border: none; border-radius: 8px; background: #2563eb; color: white; font-size: 16px; cursor: pointer; }
+        button:disabled { background: #475569; }
+    </style>
+</head>
+<body>
+    <h1>CodePi Coding Agent</h1>
+    <div class="subtitle">Local coding-only AI assistant on Raspberry Pi</div>
+    <div id="mode-label">Mode: idle</div>
+    <div id="chat-box"></div>
+    <div id="input-area">
+        <textarea id="message-input" placeholder="Ask a coding question..."></textarea>
+        <button id="send-button" onclick="sendMessage()">Send</button>
+    </div>
+    <script>
+        const chatBox = document.getElementById("chat-box");
+        const input = document.getElementById("message-input");
+        const button = document.getElementById("send-button");
+        const modeLabel = document.getElementById("mode-label");
+        function escapeHtml(text) { const div = document.createElement("div"); div.innerText = text; return div.innerHTML; }
+        function addMessage(role, text, className) {
+            const div = document.createElement("div");
+            div.className = `message ${className}`;
+            div.innerHTML = `<b>${role}:</b>\n${escapeHtml(text)}`;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+        async function sendMessage() {
+            const message = input.value.trim();
+            if (!message) return;
+            addMessage("You", message, "user");
+            input.value = "";
+            button.disabled = true;
+            button.innerText = "Thinking...";
+            try {
+                const response = await fetch("/api/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message })
+                });
+                const data = await response.json();
+                modeLabel.innerText = `Mode: ${data.mode || "unknown"}`;
+                if (data.reply) addMessage("CodePi", data.reply, "bot");
+                else addMessage("Error", data.error || "Unknown error", "error");
+            } catch (err) {
+                modeLabel.innerText = "Mode: connection_error";
+                addMessage("Error", "Could not connect to backend.", "error");
+            }
+            button.disabled = false;
+            button.innerText = "Send";
+            input.focus();
+        }
+        input.addEventListener("keydown", function(event) {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
