@@ -12,6 +12,7 @@ from agent import (
     detect_agent_mode,
 )
 from config import (
+    MAX_HISTORY_TURNS,
     MODELS_DIR,
     available_model_ids,
     default_model_id,
@@ -46,11 +47,12 @@ def create_app() -> Flask:
         data = request.get_json(silent=True) or {}
         user_message = (data.get("message") or "").strip()
         model_id = data.get("model_id") or default_model_id()
+        history = data.get("history") or []
 
         if not user_message:
             return jsonify({"error": "Empty message", "face_state": "confused"}), 400
 
-        classification = classify_query(user_message)
+        classification = classify_query(user_message, history=history)
         face_state = FACE_FOR_CLASSIFICATION[classification]
 
         if classification == "rude":
@@ -59,6 +61,7 @@ def create_app() -> Flask:
                 "mode": "rejected_rude",
                 "face_state": face_state,
                 "model_id": model_id,
+                "remembered": False,
             })
 
         if classification == "non_coding":
@@ -67,6 +70,7 @@ def create_app() -> Flask:
                 "mode": "rejected_noncoding",
                 "face_state": face_state,
                 "model_id": model_id,
+                "remembered": False,
             })
 
         if model_id is None or get_model(model_id) is None:
@@ -77,7 +81,7 @@ def create_app() -> Flask:
             }), 503
 
         mode = detect_agent_mode(user_message)
-        prompt = build_prompt(user_message, mode)
+        prompt = build_prompt(user_message, mode, history=history, max_history_turns=MAX_HISTORY_TURNS)
 
         try:
             t0 = time.time()
@@ -89,6 +93,8 @@ def create_app() -> Flask:
                 "face_state": "happy",
                 "model_id": model_id,
                 "elapsed_ms": elapsed_ms,
+                "remembered": True,
+                "history_turns_used": min(len(history) // 2 if history else 0, MAX_HISTORY_TURNS),
             })
         except ModelNotAvailable as e:
             return jsonify({"error": str(e), "face_state": "unhappy", "model_id": model_id}), 503

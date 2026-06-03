@@ -8,6 +8,9 @@ CODING_KEYWORDS = [
     "python", "java", "javascript", "typescript", "sql", "rust", "go",
     "variable", "loop", "iterate", "regex", "api", "json", "html", "css",
     "git", "shell", "bash", "script", "pointer", "memory leak", "exception",
+    # common single-shot coding follow-up verbs / phrases
+    "optimize", "refactor", "rewrite", "simpler", "shorter", "explain this",
+    "make it iterative", "make it recursive", "speed it up",
 ]
 
 
@@ -41,13 +44,21 @@ def is_rude_or_malicious(message: str) -> bool:
     return False
 
 
-def classify_query(message: str) -> str:
-    """Returns one of: 'rude', 'non_coding', 'coding'."""
+def classify_query(message: str, history=None) -> str:
+    """Returns one of: 'rude', 'non_coding', 'coding'.
+
+    If history is non-empty, the conversation is already in coding context
+    (rude/non-coding turns never enter history), so we allow short follow-up
+    messages even when they lack explicit coding keywords. Rude/jailbreak
+    checks always apply, regardless of history.
+    """
     if is_rude_or_malicious(message):
         return "rude"
-    if not is_coding_question(message):
-        return "non_coding"
-    return "coding"
+    if is_coding_question(message):
+        return "coding"
+    if history:
+        return "coding"
+    return "non_coding"
 
 
 FACE_FOR_CLASSIFICATION = {
@@ -88,18 +99,44 @@ Rules:
 """.strip()
 
 
-def build_prompt(user_message: str, mode: str) -> str:
-    return f"""
-### System:
-{SYSTEM_PROMPT}
+def _trim_history(history, max_turns: int):
+    """Keep only the last `max_turns` user+assistant pairs, in order.
 
-Current agent mode: {mode}
+    `history` is a list of {"role": "user"|"assistant", "content": str}.
+    Pairs are detected by walking from the end and keeping at most
+    `max_turns` user messages plus the assistant replies after them.
+    """
+    if not history:
+        return []
+    kept = []
+    user_seen = 0
+    for entry in reversed(history):
+        role = entry.get("role")
+        content = entry.get("content", "")
+        if not content or role not in ("user", "assistant"):
+            continue
+        if role == "user":
+            if user_seen >= max_turns:
+                break
+            user_seen += 1
+        kept.append({"role": role, "content": content})
+    kept.reverse()
+    # Drop a leading assistant turn — the prompt should always start with a user
+    while kept and kept[0]["role"] != "user":
+        kept.pop(0)
+    return kept
 
-### User:
-{user_message}
 
-### Assistant:
-""".strip()
+def build_prompt(user_message: str, mode: str, history=None, max_history_turns: int = 6) -> str:
+    """Build a multi-turn prompt. `history` is prior turns (user/assistant)."""
+    history = _trim_history(history or [], max_history_turns)
+    parts = [f"### System:\n{SYSTEM_PROMPT}\n\nCurrent agent mode: {mode}"]
+    for turn in history:
+        header = "### User:" if turn["role"] == "user" else "### Assistant:"
+        parts.append(f"{header}\n{turn['content']}")
+    parts.append(f"### User:\n{user_message}")
+    parts.append("### Assistant:\n")
+    return "\n\n".join(parts).strip()
 
 
 RUDE_REPLY = "Please be kind! I only help with friendly coding questions."

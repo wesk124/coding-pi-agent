@@ -17,6 +17,8 @@ models for benchmarking and testing.
   are hardcoded** — the list is derived from the directory at runtime.
 - Built-in benchmark: run the same prompt across every discovered model and
   compare latency / approx tokens-per-second.
+- Conversation memory: the agent remembers the last `MAX_HISTORY_TURNS` of
+  the conversation (default 6) so follow-ups like "now optimize that" work.
 - Coding-only filtering plus rudeness/jailbreak detection.
 
 ## Hardware
@@ -54,14 +56,18 @@ pip install -r requirements.txt
 ## Models
 
 Drop one or more GGUF files into `./models/`. CodePi scans this directory at
-startup; any `*.gguf` becomes a selectable model. Example layout:
+startup; any `*.gguf` becomes a selectable model. Any GGUF works — Qwen-Coder,
+Gemma / CodeGemma, Phi-3, TinyLlama, DeepSeek-Coder, Llama-3, etc. Example
+layout:
 
 ```text
 models/
   qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
   qwen2.5-coder-7b-instruct-q4_k_m.gguf
-  tinyllama-1.1b-chat.q4_k_m.gguf
+  gemma-2-2b-it-q4_k_m.gguf
+  codegemma-1.1-2b-q4_k_m.gguf
   phi-3-mini-4k-instruct-q4.gguf
+  tinyllama-1.1b-chat.q4_k_m.gguf
 ```
 
 Override the scan location via env var if you want:
@@ -96,6 +102,9 @@ The face on the side reacts in real time:
 | confused | the question is not about coding              |
 | unhappy  | the message was rude or a jailbreak attempt   |
 
+The right-side `MEMORY` bar shows how many conversation turns the agent is
+currently keeping in context. Click `CLEAR` to wipe both the chat and memory.
+
 There's also a `BENCH ALL` button that runs the current prompt across every
 discovered model and shows side-by-side timing.
 
@@ -114,9 +123,26 @@ Inside the REPL:
 :models          list discovered GGUFs
 :use <model_id>  switch active model
 :bench <prompt>  benchmark across every discovered model
+:reset           clear conversation memory (history)
+:history         show how many turns are remembered
 :clear           clear screen
 :quit            exit
 ```
+
+### Conversation memory
+
+The agent remembers prior turns so follow-ups work naturally:
+
+```text
+you > Explain bubble sort in Python.
+CodePi > [...]
+you > Now make it iterative.
+CodePi > [continues from previous answer]
+```
+
+Set the window with `MAX_HISTORY_TURNS` (default `6`). One turn = one user
+message + one assistant reply. Rude or non-coding messages are filtered before
+the model is called and do NOT enter history.
 
 ## HTTP API (web mode)
 

@@ -9,6 +9,7 @@ from agent import (
     detect_agent_mode,
 )
 from config import (
+    MAX_HISTORY_TURNS,
     MODELS_DIR,
     available_model_ids,
     default_model_id,
@@ -42,6 +43,8 @@ Commands:
   :models          list models discovered in the models directory
   :use <model_id>  switch active model
   :bench <prompt>  run prompt across all discovered models (timing only)
+  :reset           clear conversation memory (history)
+  :history         show how many turns are remembered
   :clear           clear screen
   :quit            exit
 """
@@ -102,6 +105,7 @@ def run_benchmark(registry: LLMRegistry, prompt_text: str):
 def run_cli(initial_model: str | None):
     registry = LLMRegistry()
     active = initial_model or default_model_id()
+    history = []  # list of {"role": "user"|"assistant", "content": str}
 
     print(f"{C_CYAN}{BANNER}{C_RESET}")
     if active is None:
@@ -137,6 +141,15 @@ def run_cli(initial_model: str | None):
         if user == ":models":
             print_models(active)
             continue
+        if user == ":reset":
+            history.clear()
+            print(f"{C_DIM}conversation memory cleared{C_RESET}")
+            continue
+        if user == ":history":
+            turns = len([h for h in history if h["role"] == "user"])
+            print(f"{C_DIM}remembering {turns} turn(s) "
+                  f"(cap {MAX_HISTORY_TURNS}){C_RESET}")
+            continue
         if user.startswith(":use "):
             target = user[len(":use "):].strip()
             if get_model(target) is None:
@@ -150,7 +163,7 @@ def run_cli(initial_model: str | None):
             run_benchmark(registry, user[len(":bench "):].strip())
             continue
 
-        classification = classify_query(user)
+        classification = classify_query(user, history=history)
 
         if classification == "rude":
             print(f"{color_face('unhappy')} {C_RED}{RUDE_REPLY}{C_RESET}\n")
@@ -164,8 +177,12 @@ def run_cli(initial_model: str | None):
             continue
 
         mode = detect_agent_mode(user)
-        prompt = build_prompt(user, mode)
-        print(f"{color_face('thinking')} {C_DIM}thinking ({mode})...{C_RESET}")
+        prompt = build_prompt(user, mode, history=history,
+                              max_history_turns=MAX_HISTORY_TURNS)
+        turns_used = min(len([h for h in history if h["role"] == "user"]),
+                         MAX_HISTORY_TURNS)
+        print(f"{color_face('thinking')} {C_DIM}thinking ({mode}, "
+              f"remembering {turns_used} turn(s))...{C_RESET}")
         try:
             t0 = time.time()
             reply = registry.generate(active, prompt)
@@ -173,6 +190,8 @@ def run_cli(initial_model: str | None):
             print(f"{color_face('happy')} {C_GREEN}CodePi{C_RESET} "
                   f"{C_DIM}[{active} | {elapsed:.2f}s]{C_RESET}:")
             print(reply + "\n")
+            history.append({"role": "user", "content": user})
+            history.append({"role": "assistant", "content": reply})
         except ModelNotAvailable as e:
             print(f"{color_face('unhappy')} {C_RED}{e}{C_RESET}\n")
         except Exception as e:

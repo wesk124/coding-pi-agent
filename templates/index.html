@@ -424,6 +424,10 @@
         <div class="label"><span>MOOD</span><span id="mood-pct">100%</span></div>
         <div class="bar"><div class="fill" id="mood-fill" style="width:100%"></div></div>
       </div>
+      <div class="hp-bar">
+        <div class="label"><span>MEMORY</span><span id="mem-count">0 turns</span></div>
+        <div class="bar"><div class="fill" id="mem-fill" style="width:0%;background:var(--accent)"></div></div>
+      </div>
     </aside>
   </main>
 
@@ -557,6 +561,16 @@ const STATUS_TEXT = {
 
 let mood = 100;
 let currentModelId = null;
+let history = [];           // [{role:'user'|'assistant', content:string}]
+const MAX_HISTORY_TURNS = 6;
+
+function updateMemoryBar() {
+  const turns = history.filter(h => h.role === 'user').length;
+  document.getElementById('mem-count').textContent =
+    turns + ' turn' + (turns === 1 ? '' : 's');
+  const pct = Math.min(100, Math.round((turns / MAX_HISTORY_TURNS) * 100));
+  document.getElementById('mem-fill').style.width = pct + '%';
+}
 
 function setFaceState(state) {
   const stage = document.getElementById("face-stage");
@@ -628,7 +642,7 @@ async function sendMessage() {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, model_id: currentModelId }),
+      body: JSON.stringify({ message, model_id: currentModelId, history }),
     });
     const data = await res.json();
     const face = data.face_state || (data.error ? "unhappy" : "happy");
@@ -642,7 +656,26 @@ async function sendMessage() {
       if (data.model_id) meta.push(data.model_id);
       if (data.mode)     meta.push(data.mode);
       if (data.elapsed_ms) meta.push(data.elapsed_ms + " ms");
+      if (data.remembered && typeof data.history_turns_used === 'number') {
+        meta.push("mem: " + data.history_turns_used + " turn(s)");
+      }
       addMessage("CODEPI", data.reply, cls, meta.join(" · "));
+      if (data.remembered) {
+        history.push({ role: "user", content: message });
+        history.push({ role: "assistant", content: data.reply });
+        // trim client-side too so memory bar matches what server keeps
+        const trimmed = [];
+        let userSeen = 0;
+        for (let i = history.length - 1; i >= 0; i--) {
+          if (history[i].role === "user") {
+            if (userSeen >= MAX_HISTORY_TURNS) break;
+            userSeen++;
+          }
+          trimmed.unshift(history[i]);
+        }
+        history = trimmed;
+        updateMemoryBar();
+      }
       if (face === "unhappy") bumpMood(-20);
       else if (face === "confused") bumpMood(-5);
       else bumpMood(+3);
@@ -749,13 +782,17 @@ input.addEventListener("keydown", (e) => {
 });
 document.getElementById("clear-button").addEventListener("click", () => {
   chatBox.innerHTML = "";
+  history = [];
+  updateMemoryBar();
   mood = 100; bumpMood(0);
   setFaceState("happy");
+  addMessage("CODEPI", "Memory cleared. Fresh start!", "bot");
 });
 document.getElementById("bench-button").addEventListener("click", runBenchmark);
 
 setFaceState("happy");
 bumpMood(0);
+updateMemoryBar();
 loadModels();
 addMessage(
   "CODEPI",

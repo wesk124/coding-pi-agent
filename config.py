@@ -6,6 +6,10 @@ MODEL_CONTEXT_SIZE = int(os.getenv("MODEL_CONTEXT_SIZE", "2048"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "512"))
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
 
+# How many recent user+assistant turns to keep in conversation history.
+# 1 turn = 1 user msg + 1 assistant reply. Default 6 turns = 3 exchanges.
+MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", "6"))
+
 MODELS_DIR = os.getenv("MODELS_DIR", "./models")
 MODEL_EXTS = (".gguf",)
 
