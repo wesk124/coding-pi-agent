@@ -5,6 +5,7 @@ from flask import Flask, jsonify, render_template, request
 
 from agent import (
     FACE_FOR_CLASSIFICATION,
+    GREETING_REPLY,
     NON_CODING_REPLY,
     RUDE_REPLY,
     build_prompt,
@@ -59,6 +60,15 @@ def create_app() -> Flask:
             return jsonify({
                 "reply": RUDE_REPLY,
                 "mode": "rejected_rude",
+                "face_state": face_state,
+                "model_id": model_id,
+                "remembered": False,
+            })
+
+        if classification == "greeting":
+            return jsonify({
+                "reply": GREETING_REPLY,
+                "mode": "greeting",
                 "face_state": face_state,
                 "model_id": model_id,
                 "remembered": False,

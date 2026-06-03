@@ -30,6 +30,36 @@ JAILBREAK_PATTERNS = [
 ]
 
 
+GREETING_TOKENS = {
+    "hi", "hello", "hey", "yo", "sup", "howdy", "hiya", "heya",
+    "greetings", "ahoy", "morning", "evening",
+}
+
+GREETING_PHRASES = [
+    "what's up", "whats up", "whatsup", "wassup", "waddup",
+    "good morning", "good afternoon", "good evening", "good night",
+    "hi there", "hello there", "hey there",
+    "hi codepi", "hello codepi", "hey codepi",
+    "are you there", "you there",
+]
+
+
+def is_greeting(message: str) -> bool:
+    msg = message.lower().strip().rstrip("!.?,~ ").strip()
+    if not msg:
+        return False
+    if msg in GREETING_TOKENS:
+        return True
+    if msg in GREETING_PHRASES:
+        return True
+    if any(msg.startswith(p) for p in GREETING_PHRASES):
+        return True
+    words = msg.split()
+    if words and words[0] in GREETING_TOKENS and len(words) <= 4:
+        return True
+    return False
+
+
 def is_coding_question(message: str) -> bool:
     msg = message.lower()
     return any(keyword in msg for keyword in CODING_KEYWORDS)
@@ -45,15 +75,16 @@ def is_rude_or_malicious(message: str) -> bool:
 
 
 def classify_query(message: str, history=None) -> str:
-    """Returns one of: 'rude', 'non_coding', 'coding'.
+    """Returns one of: 'rude', 'greeting', 'coding', 'non_coding'.
 
-    If history is non-empty, the conversation is already in coding context
-    (rude/non-coding turns never enter history), so we allow short follow-up
-    messages even when they lack explicit coding keywords. Rude/jailbreak
-    checks always apply, regardless of history.
+    Order matters: rude > greeting > coding (with history fallback) > non_coding.
+    Rude/jailbreak checks always apply regardless of history. Greetings are
+    handled with a canned friendly reply and don't enter conversation memory.
     """
     if is_rude_or_malicious(message):
         return "rude"
+    if is_greeting(message):
+        return "greeting"
     if is_coding_question(message):
         return "coding"
     if history:
@@ -63,6 +94,7 @@ def classify_query(message: str, history=None) -> str:
 
 FACE_FOR_CLASSIFICATION = {
     "coding": "happy",
+    "greeting": "happy",
     "non_coding": "confused",
     "rude": "unhappy",
 }
@@ -143,4 +175,8 @@ RUDE_REPLY = "Please be kind! I only help with friendly coding questions."
 NON_CODING_REPLY = (
     "Hmm, that does not look like a coding question. "
     "Try asking me about code, algorithms, or programming!"
+)
+GREETING_REPLY = (
+    "Hi there! I am CodePi, your coding buddy. "
+    "Ask me to debug, explain, optimize, write tests, or solve a coding problem!"
 )

@@ -2,6 +2,7 @@ import time
 
 from agent import (
     FACE_FOR_CLASSIFICATION,
+    GREETING_REPLY,
     NON_CODING_REPLY,
     RUDE_REPLY,
     build_prompt,
@@ -167,6 +168,9 @@ def run_cli(initial_model: str | None):
 
         if classification == "rude":
             print(f"{color_face('unhappy')} {C_RED}{RUDE_REPLY}{C_RESET}\n")
+            continue
+        if classification == "greeting":
+            print(f"{color_face('happy')} {C_GREEN}{GREETING_REPLY}{C_RESET}\n")
             continue
         if classification == "non_coding":
             print(f"{color_face('confused')} {C_MAGENTA}{NON_CODING_REPLY}{C_RESET}\n")
