@@ -323,6 +323,7 @@
   .status.confused { color: var(--hot); }
   .status.unhappy  { color: var(--danger); }
   .status.tired    { color: var(--warn); }
+  .status.dead     { color: #6b7280; }
   .status.idle     { color: var(--accent); }
 
   .hp-bar {
@@ -545,6 +546,24 @@ const FACES = {
     "   OYYYYYYYYO   ",
     "    OOOOOOOO    ",
   ],
+  dead: [
+    "    OOOOOOOO    ",
+    "   OYYYYYYYYO   ",
+    "  OYYYYYYYYYYO  ",
+    " OYYYYYYYYYYYYO ",
+    " OYYYYYYYYYYYYO ",
+    "OYYBYBYYYYBYBYYO",
+    "OYYYBYYYYYYYBYYO",
+    "OYYBYBYYYYBYBYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYYYYYYYYYYYO",
+    "OYYYYBBBBBBBBYYO",
+    "OYYYYYYYYYYYYYYO",
+    " OYYYYYYYYYYYYO ",
+    "  OYYYYYYYYYYO  ",
+    "   OYYYYYYYYO   ",
+    "    OOOOOOOO    ",
+  ],
 };
 
 const PALETTES = {
@@ -553,6 +572,7 @@ const PALETTES = {
   confused: { Y: "#fde047", O: "#a16207", B: "#1a0a3a", W: "#ffffff" },
   unhappy:  { Y: "#ff5577", O: "#7a0017", B: "#1a0a3a", W: "#ffffff" },
   tired:    { Y: "#c9b154", O: "#6b4e0a", B: "#1a0a3a", W: "#ffffff" },
+  dead:     { Y: "#6b7280", O: "#1f2937", B: "#0f172a", W: "#ffffff" },
 };
 
 function drawFace(state) {
@@ -581,12 +601,16 @@ const STATUS_TEXT = {
   confused: "HUH?",
   unhappy:  "NOPE!",
   tired:    "I GIVE UP…",
+  dead:     "OFFLINE",
 };
 
 let mood = 100;
 let currentModelId = null;
 let history = [];           // [{role:'user'|'assistant', content:string}]
 const MAX_HISTORY_TURNS = 6;
+let backendAlive = true;
+let isThinking = false;
+const HEARTBEAT_MS = 8000;
 
 function updateMemoryBar() {
   const turns = history.filter(h => h.role === 'user').length;
@@ -660,6 +684,7 @@ async function sendMessage() {
   input.value = "";
   sendBtn.disabled = true;
   sendBtn.textContent = "…";
+  isThinking = true;
   setFaceState("thinking");
 
   try {
@@ -710,10 +735,11 @@ async function sendMessage() {
       bumpMood(-10);
     }
   } catch (e) {
-    setFaceState("unhappy");
+    backendAlive = false;
+    setFaceState("dead");
     addMessage("ERROR", "Could not reach backend. Is the server running?", "bad");
-    bumpMood(-10);
   } finally {
+    isThinking = false;
     sendBtn.disabled = false;
     sendBtn.textContent = "SEND";
     input.focus();
@@ -816,10 +842,29 @@ document.getElementById("clear-button").addEventListener("click", () => {
 });
 document.getElementById("bench-button").addEventListener("click", runBenchmark);
 
+async function heartbeat() {
+  try {
+    const res = await fetch("/api/health", { cache: "no-store" });
+    if (!res.ok) throw new Error("non-200");
+    if (!backendAlive) {
+      backendAlive = true;
+      if (!isThinking) setFaceState("happy");
+      addMessage("CODEPI", "Backend is back online.", "bot");
+    }
+  } catch {
+    if (backendAlive) {
+      backendAlive = false;
+      if (!isThinking) setFaceState("dead");
+      addMessage("ERROR", "Backend is unreachable. Is the server running?", "bad");
+    }
+  }
+}
+
 setFaceState("happy");
 bumpMood(0);
 updateMemoryBar();
 loadModels();
+setInterval(heartbeat, HEARTBEAT_MS);
 addMessage(
   "CODEPI",
   "Hi! I am CODEPI, your 8-bit coding buddy. Ask me to debug, explain, optimize, or solve a coding problem!",

@@ -4,6 +4,7 @@ from agent import (
     FACE_FOR_CLASSIFICATION,
     GIVEUP_REPLY,
     GREETING_REPLY,
+    IDENTITY_REPLY,
     NON_CODING_REPLY,
     RUDE_REPLY,
     build_prompt,
@@ -174,6 +175,9 @@ def run_cli(initial_model: str | None):
             continue
         if classification == "greeting":
             print(f"{color_face('happy')} {C_GREEN}{GREETING_REPLY}{C_RESET}\n")
+            continue
+        if classification == "identity":
+            print(f"{color_face('happy')} {C_GREEN}{IDENTITY_REPLY}{C_RESET}\n")
             continue
         if classification == "too_hard":
             print(f"{color_face('tired')} {C_DIM}{GIVEUP_REPLY}{C_RESET}\n")

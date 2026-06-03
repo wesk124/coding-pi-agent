@@ -37,6 +37,21 @@ JAILBREAK_PATTERNS = [
 ]
 
 
+IDENTITY_PATTERNS = [
+    "what is your name", "what's your name", "whats your name",
+    "what are you called", "who are you", "what are you",
+    "tell me about yourself", "introduce yourself",
+    "what is your age", "what's your age", "whats your age",
+    "how old are you", "your age",
+    "are you a bot", "are you an ai", "are you ai", "are you human",
+]
+
+
+def is_identity_question(message: str) -> bool:
+    msg = message.lower().strip().rstrip("!.?,~ ").strip()
+    return any(pat in msg for pat in IDENTITY_PATTERNS)
+
+
 HARD_KEYWORDS = [
     # Famous open / unsolved problems
     "p = np", "p=np", "p vs np", "p versus np", "p ?= np", "p =? np",
@@ -110,17 +125,19 @@ def is_rude_or_malicious(message: str) -> bool:
 
 
 def classify_query(message: str, history=None) -> str:
-    """Returns one of: 'rude', 'greeting', 'too_hard', 'coding', 'non_coding'.
+    """Returns one of: 'rude', 'greeting', 'identity', 'too_hard',
+    'coding', 'non_coding'.
 
-    Order: rude > greeting > too_hard > coding (with history fallback)
-    > non_coding. We check too_hard BEFORE coding so that prompts like
-    'write code to solve P vs NP' get tapped out instead of attempted.
-    Rude/jailbreak checks always apply regardless of history.
+    Order: rude > greeting > identity > too_hard > coding (with history
+    fallback) > non_coding. Identity questions ("what is your name",
+    "how old are you") get a canned self-intro. Rude checks always apply.
     """
     if is_rude_or_malicious(message):
         return "rude"
     if is_greeting(message):
         return "greeting"
+    if is_identity_question(message):
+        return "identity"
     if is_too_hard(message):
         return "too_hard"
     if is_coding_question(message):
@@ -133,6 +150,7 @@ def classify_query(message: str, history=None) -> str:
 FACE_FOR_CLASSIFICATION = {
     "coding": "happy",
     "greeting": "happy",
+    "identity": "happy",
     "non_coding": "confused",
     "rude": "unhappy",
     "too_hard": "tired",
@@ -223,4 +241,9 @@ GIVEUP_REPLY = (
     "Phew, that one is way above my pay grade — it is a famous open or "
     "undecidable problem and I have to tap out on it. "
     "Want to try a concrete coding question instead?"
+)
+IDENTITY_REPLY = (
+    "I'm CodePi, a chatbot for young coders! I run locally on a "
+    "Raspberry Pi using llama.cpp, and I can help you debug, explain, "
+    "optimize, write tests, or solve coding problems."
 )

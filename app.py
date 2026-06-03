@@ -7,6 +7,7 @@ from agent import (
     FACE_FOR_CLASSIFICATION,
     GIVEUP_REPLY,
     GREETING_REPLY,
+    IDENTITY_REPLY,
     NON_CODING_REPLY,
     RUDE_REPLY,
     build_prompt,
@@ -70,6 +71,15 @@ def create_app() -> Flask:
             return jsonify({
                 "reply": GREETING_REPLY,
                 "mode": "greeting",
+                "face_state": face_state,
+                "model_id": model_id,
+                "remembered": False,
+            })
+
+        if classification == "identity":
+            return jsonify({
+                "reply": IDENTITY_REPLY,
+                "mode": "identity",
                 "face_state": face_state,
                 "model_id": model_id,
                 "remembered": False,
