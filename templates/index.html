@@ -855,9 +855,8 @@ async function loadModels() {
     // AUTO option always first — sends model_id="auto" to enable routing
     const autoOpt = document.createElement("option");
     autoOpt.value = "auto";
+    autoOpt.textContent = "AUTO";
     const routerInfo = data.router || {};
-    const routerTag = routerInfo.using_bert ? "BERT+RAG" : "keyword";
-    autoOpt.textContent = `AUTO (route by difficulty, ${routerTag})`;
     select.appendChild(autoOpt);
 
     if (!data.models || data.models.length === 0) {
