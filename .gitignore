@@ -3,4 +3,7 @@ __pycache__/
 *.pyc
 .env
 models/*.gguf
+models/elo_state.json
+data/leetcode_embeddings.npy
+data/leetcode_meta.json
 .DS_Store

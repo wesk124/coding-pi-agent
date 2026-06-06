@@ -12,14 +12,19 @@ from agent import (
     detect_agent_mode,
 )
 from config import (
+    BERT_MODEL_NAME,
+    ELO_STATE_PATH,
     MAX_HISTORY_TURNS,
     MODELS_DIR,
+    RAG_EMBEDDINGS_PATH,
+    RAG_META_PATH,
     available_model_ids,
     default_model_id,
     discover_models,
     get_model,
 )
 from llm import LLMRegistry, ModelNotAvailable
+from routing import EloStore, Router, update_elo
 
 C_RESET = "\033[0m"
 C_DIM = "\033[2m"
@@ -44,7 +49,11 @@ HELP = """
 Commands:
   :help            show this help
   :models          list models discovered in the models directory
-  :use <model_id>  switch active model
+  :use <model_id>  switch active model (turns auto routing OFF)
+  :auto on|off     turn router on/off (BERT + LeetCode RAG)
+  :route <prompt>  dry-run the router; show chosen model and difficulty
+  :elo             show current ELO for every discovered model
+  :vote up|down    vote on the last reply (updates ELO of last model)
   :bench <prompt>  run prompt across all discovered models (timing only)
   :reset           clear conversation memory (history)
   :history         show how many turns are remembered
@@ -109,8 +118,13 @@ def run_benchmark(registry: LLMRegistry, prompt_text: str):
 
 def run_cli(initial_model: str | None):
     registry = LLMRegistry()
+    elo_store = EloStore(ELO_STATE_PATH)
+    router = Router(RAG_EMBEDDINGS_PATH, RAG_META_PATH, BERT_MODEL_NAME)
     active = initial_model or default_model_id()
     history = []  # list of {"role": "user"|"assistant", "content": str}
+    auto_routing = True
+    last_model_id = None
+    last_target_elo = None
 
     print(f"{C_CYAN}{BANNER}{C_RESET}")
     if active is None:
@@ -162,7 +176,57 @@ def run_cli(initial_model: str | None):
                 print(f"{C_DIM}use ':models' to see what's discovered{C_RESET}")
                 continue
             active = target
-            print(f"active model: {C_BOLD}{active}{C_RESET}  ({get_model(active)['label']})")
+            auto_routing = False
+            print(f"active model: {C_BOLD}{active}{C_RESET}  "
+                  f"({get_model(active)['label']})  "
+                  f"{C_DIM}[auto routing OFF]{C_RESET}")
+            continue
+        if user.startswith(":auto"):
+            arg = user[len(":auto"):].strip().lower()
+            if arg in ("", "status"):
+                state = "ON" if auto_routing else "OFF"
+                src = "BERT+RAG" if router.using_bert else "keyword fallback"
+                print(f"auto routing: {C_BOLD}{state}{C_RESET}  "
+                      f"({src}){' — ' + router.load_error if router.load_error else ''}")
+            elif arg == "on":
+                auto_routing = True
+                print(f"{C_DIM}auto routing ON{C_RESET}")
+            elif arg == "off":
+                auto_routing = False
+                print(f"{C_DIM}auto routing OFF — using {active}{C_RESET}")
+            else:
+                print(f"{C_RED}usage:{C_RESET} :auto on | :auto off | :auto status")
+            continue
+        if user.startswith(":route "):
+            text = user[len(":route "):].strip()
+            info = router.route(text, available_model_ids(), elo_store)
+            chosen = info.get("chosen_model_id") or "(none)"
+            print(f"  LC rating  ≈ {C_BOLD}{info['predicted_lc_rating']}{C_RESET}")
+            print(f"  target ELO = {C_BOLD}{info['target_elo']}{C_RESET}")
+            print(f"  source     = {info['source']}")
+            print(f"  chosen     = {C_CYAN}{chosen}{C_RESET}  (ELO {info.get('model_elo')})")
+            for n in info.get("neighbors") or []:
+                print(f"    ~ {n['title']:60s}  rating {n['rating']:.0f}  sim {n['similarity']:.2f}")
+            continue
+        if user == ":elo":
+            ids = available_model_ids()
+            if not ids:
+                print(f"{C_YELLOW}no models discovered{C_RESET}")
+            for mid in ids:
+                print(f"  {mid:40s}  ELO {elo_store.get(mid)}")
+            continue
+        if user.startswith(":vote"):
+            arg = user[len(":vote"):].strip().lower()
+            if arg not in ("up", "down"):
+                print(f"{C_RED}usage:{C_RESET} :vote up | :vote down")
+                continue
+            if last_model_id is None:
+                print(f"{C_YELLOW}no previous reply to vote on{C_RESET}")
+                continue
+            target = last_target_elo if last_target_elo is not None else elo_store.get(last_model_id)
+            new_elo = update_elo(elo_store, last_model_id, int(target), arg)
+            print(f"  {last_model_id}: ELO -> {C_BOLD}{new_elo}{C_RESET}  "
+                  f"({arg} vs target {target})")
             continue
         if user.startswith(":bench "):
             run_benchmark(registry, user[len(":bench "):].strip())
@@ -186,9 +250,27 @@ def run_cli(initial_model: str | None):
             print(f"{color_face('confused')} {C_MAGENTA}{NON_CODING_REPLY}{C_RESET}\n")
             continue
 
-        if active is None:
+        if active is None and not auto_routing:
             print(f"{color_face('unhappy')} {C_RED}No model available. Place a *.gguf in {MODELS_DIR}.{C_RESET}\n")
             continue
+
+        # Routing decision
+        if auto_routing:
+            ids = available_model_ids()
+            info = router.route(user, ids, elo_store)
+            chosen = info.get("chosen_model_id") or active
+            last_target_elo = info["target_elo"]
+            if chosen is None:
+                print(f"{color_face('unhappy')} {C_RED}No model available.{C_RESET}\n")
+                continue
+            print(f"{C_DIM}[router] LC≈{info['predicted_lc_rating']}, "
+                  f"target ELO {info['target_elo']}, "
+                  f"picked {chosen} (ELO {info.get('model_elo')}, src {info['source']}){C_RESET}")
+        else:
+            chosen = active
+            last_target_elo = elo_store.get(chosen) if chosen else None
+
+        last_model_id = chosen
 
         mode = detect_agent_mode(user)
         prompt = build_prompt(user, mode, history=history,
@@ -199,10 +281,11 @@ def run_cli(initial_model: str | None):
               f"remembering {turns_used} turn(s))...{C_RESET}")
         try:
             t0 = time.time()
-            reply = registry.generate(active, prompt)
+            reply = registry.generate(chosen, prompt)
             elapsed = time.time() - t0
             print(f"{color_face('happy')} {C_GREEN}CodePi{C_RESET} "
-                  f"{C_DIM}[{active} | {elapsed:.2f}s]{C_RESET}:")
+                  f"{C_DIM}[{chosen} | {elapsed:.2f}s | "
+                  f"vote with :vote up|down]{C_RESET}:")
             print(reply + "\n")
             history.append({"role": "user", "content": user})
             history.append({"role": "assistant", "content": reply})

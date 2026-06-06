@@ -377,6 +377,42 @@
   .bench-row .mid { color: var(--accent); font-family: "Press Start 2P", monospace; font-size: 10px; }
   .bench-row .num { color: var(--accent-2); }
 
+  /* ====== Routing badge + vote buttons ====== */
+  .route-info {
+    display: block;
+    margin-top: 6px;
+    padding: 4px 6px;
+    background: #0a0a2a;
+    border-left: 3px solid var(--hot);
+    font-family: "VT323", monospace;
+    font-size: 14px;
+    color: var(--ink-dim);
+  }
+  .route-info .k { color: var(--hot); }
+  .route-info .v { color: var(--accent); }
+
+  .vote-row {
+    display: flex; gap: 6px; margin-top: 8px; align-items: center;
+  }
+  .vote-btn {
+    font-family: "Press Start 2P", monospace;
+    font-size: 9px;
+    padding: 4px 8px;
+    border: 2px solid var(--ink);
+    background: var(--bg);
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: 2px 2px 0 var(--shadow);
+  }
+  .vote-btn.up:hover   { background: var(--good); color: var(--bg); }
+  .vote-btn.down:hover { background: var(--danger); color: var(--ink); }
+  .vote-btn[disabled]  { opacity: 0.4; cursor: default; }
+  .vote-status {
+    font-family: "VT323", monospace;
+    font-size: 14px;
+    color: var(--accent);
+  }
+
   footer {
     margin-top: 18px;
     font-family: "VT323", monospace;
@@ -666,13 +702,64 @@ function renderReply(text) {
   return out;
 }
 
-function addMessage(who, text, cls, meta) {
+function addMessage(who, text, cls, meta, extras) {
   const div = document.createElement("div");
   div.className = "msg " + cls;
   const whoLabel = `<span class="who">${escapeHtml(who)}</span>`;
   const body = cls === "bot" ? renderReply(text) : escapeHtml(text);
   const metaLine = meta ? `<span class="meta">${escapeHtml(meta)}</span>` : "";
-  div.innerHTML = whoLabel + body + metaLine;
+  let routeBlock = "";
+  if (extras && extras.routing) {
+    const r = extras.routing;
+    routeBlock =
+      `<div class="route-info">` +
+      `<span class="k">router</span> &middot; ` +
+      `lc≈<span class="v">${r.predicted_lc_rating}</span> &middot; ` +
+      `target ELO <span class="v">${r.target_elo}</span> &middot; ` +
+      `picked <span class="v">${escapeHtml(r.chosen_model_id || "?")}</span>` +
+      (r.model_elo ? ` (ELO <span class="v">${r.model_elo}</span>)` : "") +
+      ` &middot; source <span class="v">${escapeHtml(r.source || "")}</span>` +
+      `</div>`;
+  }
+  div.innerHTML = whoLabel + body + metaLine + routeBlock;
+  if (extras && extras.voteContext) {
+    const row = document.createElement("div");
+    row.className = "vote-row";
+    const up = document.createElement("button");
+    up.className = "vote-btn up"; up.textContent = "+1";
+    const down = document.createElement("button");
+    down.className = "vote-btn down"; down.textContent = "-1";
+    const status = document.createElement("span");
+    status.className = "vote-status";
+    async function castVote(direction) {
+      up.disabled = true; down.disabled = true;
+      try {
+        const res = await fetch("/api/vote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model_id: extras.voteContext.model_id,
+            vote: direction,
+            target_elo: extras.voteContext.target_elo,
+          }),
+        });
+        const data = await res.json();
+        if (data.new_elo !== undefined) {
+          status.textContent = `voted ${direction} - ${extras.voteContext.model_id} ELO -> ${data.new_elo}`;
+        } else {
+          status.textContent = `error: ${data.error || "vote failed"}`;
+        }
+      } catch (e) {
+        status.textContent = "vote failed (network)";
+      }
+    }
+    up.addEventListener("click", () => castVote("up"));
+    down.addEventListener("click", () => castVote("down"));
+    row.appendChild(up);
+    row.appendChild(down);
+    row.appendChild(status);
+    div.appendChild(row);
+  }
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
@@ -709,7 +796,18 @@ async function sendMessage() {
       if (data.remembered && typeof data.history_turns_used === 'number') {
         meta.push("mem: " + data.history_turns_used + " turn(s)");
       }
-      addMessage("CODEPI", data.reply, cls, meta.join(" · "));
+      if (data.model_elo !== undefined && data.model_elo !== null) {
+        meta.push("ELO " + data.model_elo);
+      }
+      const extras = {};
+      if (data.routing) extras.routing = data.routing;
+      if (data.remembered && data.model_id) {
+        extras.voteContext = {
+          model_id: data.model_id,
+          target_elo: (data.routing && data.routing.target_elo) || data.model_elo || 1200,
+        };
+      }
+      addMessage("CODEPI", data.reply, cls, meta.join(" · "), extras);
       if (data.remembered) {
         history.push({ role: "user", content: message });
         history.push({ role: "assistant", content: data.reply });
@@ -753,15 +851,21 @@ async function loadModels() {
     const res = await fetch("/api/models");
     const data = await res.json();
     select.innerHTML = "";
+
+    // AUTO option always first — sends model_id="auto" to enable routing
+    const autoOpt = document.createElement("option");
+    autoOpt.value = "auto";
+    const routerInfo = data.router || {};
+    const routerTag = routerInfo.using_bert ? "BERT+RAG" : "keyword";
+    autoOpt.textContent = `AUTO (route by difficulty, ${routerTag})`;
+    select.appendChild(autoOpt);
+
     if (!data.models || data.models.length === 0) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "(no GGUFs found)";
-      select.appendChild(opt);
-      currentModelId = null;
+      currentModelId = "auto";
+      select.value = "auto";
       addMessage(
         "CODEPI",
-        `No models found in ${data.models_dir || "./models"}. Drop a *.gguf file in there and reload.`,
+        `No GGUFs found in ${data.models_dir || "./models"}. Drop a *.gguf file there and reload.`,
         "warn"
       );
       setFaceState("confused");
@@ -770,17 +874,29 @@ async function loadModels() {
     for (const m of data.models) {
       const opt = document.createElement("option");
       opt.value = m.id;
-      opt.textContent = m.label;
+      opt.textContent = m.elo ? `${m.label} — ELO ${m.elo}` : m.label;
       select.appendChild(opt);
     }
-    currentModelId = data.default || data.models[0].id;
-    select.value = currentModelId;
+    currentModelId = "auto";  // default to auto routing
+    select.value = "auto";
+    if (routerInfo.load_error) {
+      addMessage(
+        "CODEPI",
+        `Router note: ${routerInfo.load_error}. Auto mode will use the keyword fallback until RAG is built.`,
+        "warn"
+      );
+    }
   } catch (e) {
     addMessage("ERROR", "Could not load models from backend.", "bad");
   }
   select.addEventListener("change", () => {
     currentModelId = select.value;
-    addMessage("CODEPI", `Switched to model: ${select.options[select.selectedIndex].text}`, "bot");
+    const label = select.options[select.selectedIndex].text;
+    addMessage("CODEPI",
+      currentModelId === "auto"
+        ? "AUTO routing on — each query is routed to the best-matching model by difficulty."
+        : `Switched to model: ${label}. Auto routing OFF.`,
+      "bot");
   });
 }
 

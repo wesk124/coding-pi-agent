@@ -1,2 +1,7 @@
 flask
 llama-cpp-python
+# routing layer (BERT + LeetCode RAG). Optional — the router falls back to
+# a keyword heuristic if these are not installed, so the base agent still
+# runs without them.
+sentence-transformers
+numpy

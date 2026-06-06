@@ -13,6 +13,15 @@ MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", "6"))
 MODELS_DIR = os.getenv("MODELS_DIR", "./models")
 MODEL_EXTS = (".gguf",)
 
+# Query routing (BERT + LeetCode-RAG) — see routing.py
+RAG_DIR = os.getenv("RAG_DIR", "./data")
+RAG_EMBEDDINGS_PATH = os.path.join(RAG_DIR, "leetcode_embeddings.npy")
+RAG_META_PATH = os.path.join(RAG_DIR, "leetcode_meta.json")
+BERT_MODEL_NAME = os.getenv(
+    "BERT_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"
+)
+ELO_STATE_PATH = os.getenv("ELO_STATE_PATH", os.path.join(MODELS_DIR, "elo_state.json"))
+
 
 def _humanize(stem: str) -> str:
     return stem.replace("_", " ").replace("-", " ").strip()
