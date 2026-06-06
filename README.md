@@ -57,7 +57,21 @@ Create Python environment:
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
+
+# IMPORTANT on Raspberry Pi (no GPU): install CPU-only PyTorch FIRST.
+# The default torch wheel on PyPI bundles ~3 GB of unusable CUDA libs
+# (NCCL, cuDNN, cuBLAS, …). The CPU index ships the same API without them.
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
 pip install -r requirements.txt
+```
+
+If you already created a venv with the bloated GPU torch by accident,
+remove it cleanly with:
+
+```bash
+pip uninstall -y torch triton $(pip list 2>/dev/null | awk '/^nvidia-/ {print $1}')
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ## Models
