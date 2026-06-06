@@ -2,9 +2,17 @@ import glob
 import os
 
 MODEL_THREADS = int(os.getenv("MODEL_THREADS", "4"))
-MODEL_CONTEXT_SIZE = int(os.getenv("MODEL_CONTEXT_SIZE", "2048"))
+MODEL_CONTEXT_SIZE = int(os.getenv("MODEL_CONTEXT_SIZE", "4096"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "512"))
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
+# Reserve room for the model's generated reply + a small safety margin
+# when packing prompt tokens. PROMPT_BUDGET = MODEL_CONTEXT_SIZE - MAX_TOKENS - this.
+CONTEXT_SAFETY = int(os.getenv("CONTEXT_SAFETY", "128"))
+
+# Cap how many GGUF models are kept resident in memory at once. Auto-routing
+# can ping-pong between models; without eviction the Pi OOMs. Default 1 keeps
+# only the currently-used model loaded. Set to 2 if you have ample RAM.
+MAX_LOADED_MODELS = int(os.getenv("MAX_LOADED_MODELS", "1"))
 
 # How many recent user+assistant turns to keep in conversation history.
 # 1 turn = 1 user msg + 1 assistant reply. Default 6 turns = 3 exchanges.

@@ -16,8 +16,11 @@ from agent import (
 )
 from config import (
     BERT_MODEL_NAME,
+    CONTEXT_SAFETY,
     ELO_STATE_PATH,
     MAX_HISTORY_TURNS,
+    MAX_TOKENS,
+    MODEL_CONTEXT_SIZE,
     MODELS_DIR,
     RAG_EMBEDDINGS_PATH,
     RAG_META_PATH,
@@ -139,7 +142,13 @@ def create_app() -> Flask:
             }), 503
 
         mode = detect_agent_mode(user_message)
-        prompt = build_prompt(user_message, mode, history=history, max_history_turns=MAX_HISTORY_TURNS)
+        prompt_budget = max(256, MODEL_CONTEXT_SIZE - MAX_TOKENS - CONTEXT_SAFETY)
+        prompt = build_prompt(
+            user_message, mode,
+            history=history,
+            max_history_turns=MAX_HISTORY_TURNS,
+            max_prompt_tokens=prompt_budget,
+        )
 
         try:
             t0 = time.time()

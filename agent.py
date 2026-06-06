@@ -216,16 +216,52 @@ def _trim_history(history, max_turns: int):
     return kept
 
 
-def build_prompt(user_message: str, mode: str, history=None, max_history_turns: int = 6) -> str:
-    """Build a multi-turn prompt. `history` is prior turns (user/assistant)."""
+def _estimate_tokens(text: str) -> int:
+    """Cheap token estimate without loading a tokenizer. Slight overcount
+    is safer than undercount — we use it to decide when to drop history."""
+    return max(1, len(text) // 3 + 1)
+
+
+def build_prompt(
+    user_message: str,
+    mode: str,
+    history=None,
+    max_history_turns: int = 6,
+    max_prompt_tokens: int | None = None,
+) -> str:
+    """Build a multi-turn prompt. `history` is prior turns (user/assistant).
+
+    If max_prompt_tokens is set, the oldest history turn pair is dropped
+    repeatedly until the estimated prompt size fits. The current user
+    message and system prompt are never dropped.
+    """
     history = _trim_history(history or [], max_history_turns)
-    parts = [f"### System:\n{SYSTEM_PROMPT}\n\nCurrent agent mode: {mode}"]
-    for turn in history:
-        header = "### User:" if turn["role"] == "user" else "### Assistant:"
-        parts.append(f"{header}\n{turn['content']}")
-    parts.append(f"### User:\n{user_message}")
-    parts.append("### Assistant:\n")
-    return "\n\n".join(parts).strip()
+
+    def assemble(hist):
+        parts = [f"### System:\n{SYSTEM_PROMPT}\n\nCurrent agent mode: {mode}"]
+        for turn in hist:
+            header = "### User:" if turn["role"] == "user" else "### Assistant:"
+            parts.append(f"{header}\n{turn['content']}")
+        parts.append(f"### User:\n{user_message}")
+        parts.append("### Assistant:\n")
+        return "\n\n".join(parts).strip()
+
+    prompt = assemble(history)
+    if max_prompt_tokens is None:
+        return prompt
+    # Drop oldest user+assistant pair until under budget
+    while history and _estimate_tokens(prompt) > max_prompt_tokens:
+        # remove leading entries until we drop at least one user turn
+        dropped_user = False
+        while history and not dropped_user:
+            entry = history.pop(0)
+            if entry["role"] == "user":
+                dropped_user = True
+        # also drop the assistant reply that followed it (if it's now leading)
+        while history and history[0]["role"] == "assistant":
+            history.pop(0)
+        prompt = assemble(history)
+    return prompt
 
 
 RUDE_REPLY = "Please be kind! I only help with friendly coding questions."

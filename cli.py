@@ -13,8 +13,11 @@ from agent import (
 )
 from config import (
     BERT_MODEL_NAME,
+    CONTEXT_SAFETY,
     ELO_STATE_PATH,
     MAX_HISTORY_TURNS,
+    MAX_TOKENS,
+    MODEL_CONTEXT_SIZE,
     MODELS_DIR,
     RAG_EMBEDDINGS_PATH,
     RAG_META_PATH,
@@ -273,8 +276,10 @@ def run_cli(initial_model: str | None):
         last_model_id = chosen
 
         mode = detect_agent_mode(user)
+        prompt_budget = max(256, MODEL_CONTEXT_SIZE - MAX_TOKENS - CONTEXT_SAFETY)
         prompt = build_prompt(user, mode, history=history,
-                              max_history_turns=MAX_HISTORY_TURNS)
+                              max_history_turns=MAX_HISTORY_TURNS,
+                              max_prompt_tokens=prompt_budget)
         turns_used = min(len([h for h in history if h["role"] == "user"]),
                          MAX_HISTORY_TURNS)
         print(f"{color_face('thinking')} {C_DIM}thinking ({mode}, "
