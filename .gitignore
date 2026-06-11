@@ -6,4 +6,5 @@ models/*.gguf
 models/elo_state.json
 data/leetcode_embeddings.npy
 data/leetcode_meta.json
+report/
 .DS_Store
