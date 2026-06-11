@@ -44,12 +44,14 @@ class LLMRegistry:
         )
         return self._cache[model_id]
 
-    def generate(self, model_id: str, prompt: str) -> str:
+    def generate(self, model_id: str, prompt: str,
+                 max_tokens: int | None = None,
+                 temperature: float | None = None) -> str:
         llm = self.load(model_id)
         output = llm(
             prompt,
-            max_tokens=MAX_TOKENS,
-            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS if max_tokens is None else max_tokens,
+            temperature=TEMPERATURE if temperature is None else temperature,
             stop=["### User:", "### System:"],
         )
         return output["choices"][0]["text"].strip()
